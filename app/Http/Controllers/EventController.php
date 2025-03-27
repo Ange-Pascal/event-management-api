@@ -2,28 +2,30 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Resources\EventResource;
 use App\Models\Event;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Controller;
+use App\Http\Resources\EventResource;
+use App\Http\Traits\CanLoadRelationships;
 use Symfony\Contracts\Service\Attribute\Required;
 
 class EventController extends Controller
 {
+    use CanLoadRelationships; 
+
+    public function __construct()
+    {
+        $this->middleware('auth:sanctum')->except('index', 'show');
+    }
     /**
      * Display a listing of the resource.
      */
     public function index()
     {
-        $query = Event::query(); 
-
         $relations = ['user', 'attendees', 'attendees.user'];
+        $query = $this->loadRelationships(Event::query(), $relations); 
 
-        foreach($relations as $relation){
-            $query->when(
-                $this->shouldIncludeRelation($relation), 
-                fn($q)=> $q->with($relation)
-            );
-        }
+
         // return  EventResource::collection(Event::with('user')->paginate()); 
 
         return EventResource::collection(
@@ -31,18 +33,7 @@ class EventController extends Controller
         );
     }
 
-    protected function shouldIncludeRelation(): bool{
-        $include = request()->query('include');
-
-        if (!$include){
-            return false;
-        }
-
-        $relations = array_map('trim', explode(',', $include)); 
-        
-
-        return in_array($relation, $relations);
-    }
+    
 
     /**
      * Store a newly created resource in storage.
@@ -56,7 +47,7 @@ class EventController extends Controller
                 'start_time' => 'required|date',
                 'end_time' => 'required|date|after:start_time'
             ]),
-            'user_id' => 1
+            'user_id' => $request->user()->id
         ]);
 
         return new EventResource($event);
